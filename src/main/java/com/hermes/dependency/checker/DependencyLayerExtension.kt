@@ -1,11 +1,6 @@
 package com.hermes.dependency.checker
 
-import org.gradle.api.model.ObjectFactory
-import javax.inject.Inject
-
-open class DependencyLayerExtension @Inject constructor(
-    objectFactory: ObjectFactory,
-) {
+open class DependencyLayerExtension {
 
     /**
      * layers 层级信息（按照一定的顺序，正向依赖的case）

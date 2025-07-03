@@ -3,9 +3,9 @@ package com.hermes.dependency.checker
 import org.gradle.api.DefaultTask
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import kotlin.collections.component1
-import kotlin.collections.mutableListOf
 
 /**
  * 1、解析 layers：按照一定的层级规则排序 【L1 -> L2 -> L3 -> L4 -> L5 -> app】
@@ -20,6 +20,7 @@ abstract class DependencyCheckTask : DefaultTask() {
     lateinit var layerModules: MutableMap<String, Set<String>>
 
     @get:Input
+    @Optional
     var crossLogicLayerModule: String? = null
 
     private lateinit var sortLayersList: List<String>
@@ -27,22 +28,30 @@ abstract class DependencyCheckTask : DefaultTask() {
 
     @TaskAction
     fun check() {
-        val violations = mutableListOf<String>()
+        val violations = mutableSetOf<String>()
         initConfig()
         project.configurations.forEach { config ->
             val currentModule = project.displayName
             if (config.isCanBeResolved) {
                 config.dependencies.forEach { dependency ->
                     if (dependency !is ProjectDependency) {
-                        println("dependency is not project dependency, can ignore!!!")
+                        return@forEach
                     }
-                    val currentLayer = resolveLayer(currentModule)
-                    val depModule = dependency.name
-                    val depLayer = resolveLayer(depModule)
+                    val currentLayer = resolveLayer(extractProjectInfo(currentModule))
+                    val dependencyProjectDisplayName = dependency.dependencyProject.displayName
+                    val dependencyLayer =
+                        resolveLayer(extractProjectInfo(dependencyProjectDisplayName))
 
-                    println("depModule: $depModule")
-                    if (isCrossLayerViolation(currentLayer, depLayer)) {
-                        violations.add("⛔ $currentModule ($currentLayer) → $depModule ($depLayer)")
+                    println("currentLayer-> ($currentLayer) | dependencyLayer-> ($dependencyLayer)")
+
+                    if (isCrossLayerViolation(currentLayer, dependencyLayer)) {
+                        violations.add(
+                            "${extractProjectInfo(currentModule)} ($currentLayer) --> ${
+                                extractProjectInfo(
+                                    dependencyProjectDisplayName
+                                )
+                            } ($dependencyLayer)"
+                        )
                     }
                 }
             }
@@ -59,37 +68,46 @@ abstract class DependencyCheckTask : DefaultTask() {
         }
     }
 
-    fun generateReport(violations: MutableList<String>) {
-        val reportFile = project.layout.buildDirectory.file("reports/dependency.html").get().asFile
-        reportFile.writeText(
-            """
-        <!DOCTYPE html>
-        <html><body>
-            ${violations.joinToString("<br>")}
-        </body></html>
-    """
-        )
+    fun generateReport(violations: MutableSet<String>) {
+        val reportFile =
+            project.layout.buildDirectory.file("outputs/reports/forbid_dependency.html")
+                .get().asFile
+        if (!reportFile.parentFile.exists()) {
+            reportFile.parentFile.mkdirs()
+            logger.lifecycle("Created directories: ${reportFile.parent}")
+        }
+
+        if (!reportFile.exists()) {
+            reportFile.createNewFile()
+            logger.lifecycle("Created file: ${reportFile.path}")
+        } else {
+            logger.lifecycle("File already exists: ${reportFile.path}")
+        }
+
+        reportFile.writeText(generateHtml(violations).trimIndent(), Charsets.UTF_8)
     }
 
-
-    fun resolveLayer(module: String): String? {
+    fun resolveLayer(module: String?): String? {
         return layerModules.entries.find { (_, modules) ->
             modules.contains(module)
         }?.key
     }
 
     private fun isCrossLayerViolation(currentLayer: String?, depLayer: String?): Boolean {
-        println("currentLayer: $currentLayer ; depLayer: $depLayer ; crossLogicLayer: $crossLogicLayer")
+        if (currentLayer == null || depLayer == null) {
+            return false
+        }
+        println("currentLayer($currentLayer) dependencyLayer($depLayer) crossLogicLayer($crossLogicLayer)")
         val currentIndex = sortLayersList.indexOf(currentLayer)
-        val depLayerIndex = sortLayersList.indexOf(depLayer)
+        val dependencyLayerIndex = sortLayersList.indexOf(depLayer)
         if (crossLogicLayer == null) {
-            return currentIndex >= depLayerIndex
+            return dependencyLayerIndex > currentIndex
         }
         val crossLayerIndex = sortLayersList.indexOf(crossLogicLayer)
-        return if (currentIndex > crossLayerIndex && depLayerIndex < crossLayerIndex) {
+        return if (currentIndex >= crossLayerIndex && dependencyLayerIndex <= crossLayerIndex) {
             false
         } else {
-            currentIndex >= depLayerIndex
+            dependencyLayerIndex > currentIndex
         }
     }
 }

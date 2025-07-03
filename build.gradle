@@ -52,4 +52,18 @@ publishing {
     repositories {
         mavenLocal()
     }
+
+    publications {
+        pluginMaven(MavenPublication) {
+            groupId = project.group
+            artifactId = "dependency-checker"
+            version = project.version
+        }
+
+        pluginMarker(MavenPublication) {
+            groupId = project.group
+            artifactId = "dependency-checker"
+            version = project.version
+        }
+    }
 }
