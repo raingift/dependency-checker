@@ -8,10 +8,7 @@ const val GROUP_VERIFICATION = "verification"
 class DependencyCheckerPlugin : Plugin<Project> {
 
     override fun apply(project: Project) {
-        val extension = project.extensions.create(
-            "layerRules",
-            DependencyLayerExtension::class.java
-        )
+        project.extensions.create("layerRules", DependencyLayerExtension::class.java)
 
         printProjectInfo(project)
 
@@ -21,24 +18,28 @@ class DependencyCheckerPlugin : Plugin<Project> {
             project.subprojects { subProject ->
                 subProject.afterEvaluate {
                     println(" subProject: " + subProject.displayName)
-                    subProject.addTask(extension)
+                    subProject.addTask(getLayerExtension(project))
                 }
             }
         } else {
             project.afterEvaluate {
                 println(" project: " + project.displayName)
-                project.addTask(extension)
+                project.addTask(getLayerExtension(project))
             }
         }
     }
 
-    fun Project.addTask(extension: DependencyLayerExtension) {
+    private fun getLayerExtension(project: Project): DependencyLayerExtension? {
+        return project.extensions.findByType(DependencyLayerExtension::class.java)
+    }
+
+    fun Project.addTask(extension: DependencyLayerExtension?) {
         tasks.register("analyzeDependenciesChecker", DependencyCheckTask::class.java) {
             it.description = " Run Dependency Check"
             it.group = GROUP_VERIFICATION
-            it.sortLayers = extension.layers
-            it.layerModules = extension.layerModules
-            it.crossLogicLayerModule = extension.crossLogicLayerModule
+            it.sortLayers = extension?.layers ?: mutableListOf<String>()
+            it.layerModules = extension?.layerModules?: mutableMapOf()
+            it.crossLogicLayerModule = extension?.crossLogicLayerModule
         }
     }
 
