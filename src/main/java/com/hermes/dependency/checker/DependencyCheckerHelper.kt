@@ -1,8 +1,14 @@
 package com.hermes.dependency.checker
 
-fun extractProjectInfo(input: String): String? {
+import org.jetbrains.kotlin.konan.file.File
+
+fun extractProjectInfo(input: String): String {
     val parts = input.split('\'')
     return if (parts.size >= 2) parts[1] else input
+}
+
+fun getGenerateFileName(input: String): String {
+    return extractProjectInfo(input).replace(":", File.separator)
 }
 
 fun generateHtml(violations: MutableSet<String>): String = """

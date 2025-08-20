@@ -17,13 +17,11 @@ class DependencyCheckerPlugin : Plugin<Project> {
         if (hasSubProjects) {
             project.subprojects { subProject ->
                 subProject.afterEvaluate {
-                    println(" subProject: " + subProject.displayName)
                     subProject.addTask(getLayerExtension(project))
                 }
             }
         } else {
             project.afterEvaluate {
-                println(" project: " + project.displayName)
                 project.addTask(getLayerExtension(project))
             }
         }
@@ -33,13 +31,27 @@ class DependencyCheckerPlugin : Plugin<Project> {
         return project.extensions.findByType(DependencyLayerExtension::class.java)
     }
 
-    fun Project.addTask(extension: DependencyLayerExtension?) {
+    private fun Project.addTask(extension: DependencyLayerExtension?) {
         tasks.register("analyzeDependenciesChecker", DependencyCheckTask::class.java) {
-            it.description = " Run Dependency Check"
+            it.description = "Run Dependency Check"
             it.group = GROUP_VERIFICATION
-            it.sortLayers = extension?.layers ?: mutableListOf<String>()
-            it.layerModules = extension?.layerModules?: mutableMapOf()
-            it.crossLogicLayerModule = extension?.crossLogicLayerModule
+            it.moduleLayers = extension?.moduleLayers ?: mutableListOf()
+            it.modulesGroup = extension?.modulesGroup ?: mutableMapOf()
+            it.crossLogicLayerModules = extension?.crossLogicLayerModules
+            it.layersForbidConfig = extension?.layersForbidConfig
+            it.enableDebug = extension?.enableDebug ?: false
+        }
+        tasks.register("cleanDependenciesCheckerReport") {
+            it.description = "Clean Dependency Report"
+            it.group = GROUP_VERIFICATION
+
+            it.doLast {
+                val reportFiles =
+                    rootProject.layout.buildDirectory.file("outputs/reports/").get().asFile
+                if (reportFiles.exists()) {
+                    reportFiles.deleteRecursively()
+                }
+            }
         }
     }
 
